@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEC 2019 Benchmark Visualizer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <!-- MathJax for Formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .sidebar-item {
+            transition: all 0.2s;
+        }
+
+        .sidebar-item:hover {
+            background-color: #374151;
+            padding-left: 1.25rem;
+        }
+
+        .sidebar-item.active {
+            background-color: #2563EB;
+            border-left: 4px solid #60A5FA;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-80 bg-gray-800 flex-shrink-0 flex flex-col border-r border-gray-700 shadow-xl z-20">
+        <div class="p-6 border-b border-gray-700 bg-gray-900">
+            <h1 class="text-xl font-bold text-blue-400">CEC 2019 Suite</h1>
+            <p class="text-xs text-gray-500 mt-1">The 100-Digit Challenge</p>
+        </div>
+
+        <div class="overflow-y-auto flex-1 p-3 space-y-1" id="functionList">
+            <!-- List Items Injected via JS -->
+        </div>
+
+        <div class="p-4 border-t border-gray-700 text-xs text-gray-500 text-center">
+            Visualizing 2D slices of D-dimensional functions
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col relative h-full overflow-hidden">
+
+        <!-- Header -->
+        <header class="h-16 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-6 shadow-md z-10">
+            <div>
+                <h2 id="currentTitle" class="text-lg font-semibold text-white">Select a Function</h2>
+                <div class="flex items-center gap-3 text-xs mt-0.5">
+                    <span id="currentType" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300 hidden">Type</span>
+                    <span id="currentDim" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300 hidden">Dim</span>
+                </div>
+            </div>
+            <!-- Toggle Controls -->
+            <div class="flex items-center gap-4">
+                <button onclick="toggleResolution()"
+                    class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded text-gray-300 transition">
+                    Toggle HD Resolution
+                </button>
+            </div>
+        </header>
+
+        <!-- Visualization Area -->
+        <div class="flex-1 relative bg-gray-900">
+            <div id="plot" class="w-full h-full"></div>
+
+            <!-- Overlay for Non-Visualizable functions -->
+            <div id="noVizOverlay"
+                class="absolute inset-0 bg-gray-900/90 flex flex-col items-center justify-center hidden z-30">
+                <div class="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-lg text-center border border-gray-700">
+                    <svg class="w-16 h-16 text-yellow-500 mx-auto mb-4" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h3 class="text-xl font-bold text-white mb-2">Visualization Unavailable</h3>
+                    <p class="text-gray-400 text-sm mb-4">
+                        This is a complex <span class="text-blue-400">Fixed-Dimension Problem</span> (Physics/Math)
+                        rather than a generalized scalabale function.
+                        It cannot be easily represented as a simple 2D surface slice without specific constraints or
+                        large datasets.
+                    </p>
+                    <div class="text-left bg-gray-900 p-4 rounded text-xs font-mono text-green-400 overflow-x-auto">
+                        See details panel below for formula/definition.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Panel -->
+        <div
+            class="h-1/3 min-h-[250px] bg-gray-800 border-t border-gray-700 overflow-y-auto p-6 z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+            <div class="max-w-4xl mx-auto">
+                <h3 class="text-sm uppercase tracking-wider text-gray-500 font-bold mb-3">Function Details</h3>
+                <p id="descText" class="text-gray-300 text-sm leading-relaxed mb-4">
+                    Select a function from the sidebar to view its details and visualization.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                    <div class="bg-gray-750 p-4 rounded-lg border border-gray-700">
+                        <h4 class="text-xs font-bold text-blue-400 uppercase mb-2">Formula / Definition</h4>
+                        <div id="formulaContainer" class="text-sm text-gray-200 overflow-x-auto py-2">
+                            <!-- MathJax renders here -->
+                        </div>
+                    </div>
+                    <div class="bg-gray-750 p-4 rounded-lg border border-gray-700">
+                        <h4 class="text-xs font-bold text-green-400 uppercase mb-2">Characteristics</h4>
+                        <ul id="characteristicsList" class="text-sm text-gray-400 space-y-2 list-disc list-inside">
+                            <!-- Injected JS -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- Data Definitions ---
+        const cecFunctions = [
+            {
+                id: "f1",
+                name: "F1: Storn's Chebyshev",
+                type: "Multimodal",
+                dim: 9,
+                visualizable: false,
+                desc: "A parameter estimation problem for Chebyshev polynomial fitting. The goal is to find coefficients that fit a specific polynomial curve. It creates a highly multimodal landscape with many local optima.",
+                formula: "\\text{Minimize error of fitting } T_n(x) \\text{ coefficients.}",
+                traits: ["Fixed Dimension (9)", "Highly Multimodal", "Polynomial Fitting"]
+            },
+            {
+                id: "f2",
+                name: "F2: Inverse Hilbert",
+                type: "Unimodal",
+                dim: 16,
+                visualizable: false,
+                desc: "Based on the Hilbert matrix, which is notoriously ill-conditioned. Small changes in the input vector cause massive changes in the result. This tests an algorithm's numerical stability and precision.",
+                formula: "H_{ij} = \\frac{1}{i+j-1}",
+                traits: ["Fixed Dimension (16)", "Ill-conditioned", "Numerical Stability Test"]
+            },
+            {
+                id: "f3",
+                name: "F3: Lennard-Jones",
+                type: "Multimodal",
+                dim: 18,
+                visualizable: false,
+                desc: "A physics problem involving minimizing the potential energy of a cluster of atoms. The landscape is funnel-shaped but filled with an exponential number of local minima.",
+                formula: "V_{LJ} = 4\\epsilon \\sum_{i<j} \\left[ \\left(\\frac{\\sigma}{r_{ij}}\\right)^{12} - \\left(\\frac{\\sigma}{r_{ij}}\\right)^{6} \\right]",
+                traits: ["Fixed Dimension (18)", "Physics Simulation", "Funnel Landscape"]
+            },
+            {
+                id: "f4",
+                name: "F4: Rastrigin",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 5.12,
+                desc: "The 'Egg Crate' function. It has a global minimum at (0,0) but is covered in a regular grid of local minima. Algorithms must maintain diversity to avoid getting trapped in a local cup.",
+                formula: "f(x) = 10D + \\sum_{i=1}^D [x_i^2 - 10\\cos(2\\pi x_i)]",
+                traits: ["Separable", "Regular Local Minima", "Global Opt at 0"]
+            },
+            {
+                id: "f5",
+                name: "F5: Griewank",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 100, // Usually 600, reduced for visual clarity
+                desc: "Similar to Rastrigin but the local minima become less deep as dimensionality increases. It tests the ability to navigate a rough surface that looks smooth from a distance.",
+                formula: "f(x) = 1 + \\sum \\frac{x_i^2}{4000} - \\prod \\cos\\left(\\frac{x_i}{\\sqrt{i}}\\right)",
+                traits: ["Non-Separable", "Many Local Minima", "Smooth Global Structure"]
+            },
+            {
+                id: "f6",
+                name: "F6: Weierstrass",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 2, // Small range to show fractal nature
+                desc: "Continuous everywhere but differentiable nowhere. It simulates a 'fractal' landscape, testing an algorithm's ability to handle rough, non-smooth gradients.",
+                formula: "f(x) = \\sum_{i=1}^D \\sum_{k=0}^{kmax} [a^k \\cos(2\\pi b^k (x_i + 0.5))] - D\\sum a^k \\cos(\\pi b^k)",
+                traits: ["Non-Differentiable", "Fractal Surface", "Continuous"]
+            },
+            {
+                id: "f7",
+                name: "F7: Modified Schwefel",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 500,
+                desc: "A deceptive function where the global minimum is far at the edge of the search space, distant from the next best local minima.",
+                formula: "f(x) = 418.9829D - \\sum_{i=1}^D x_i \\sin(\\sqrt{|x_i|})",
+                traits: ["Deceptive", "Global Opt at Edge (420.96)", "Deep Local Pits"]
+            },
+            {
+                id: "f8",
+                name: "F8: Expanded Schaffer F6",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 100,
+                desc: "Characterized by concentric circular ridges around the global optimum. The gradients oscillate wildly as you approach the center.",
+                formula: "f(x) = 0.5 + \\frac{\\sin^2(\\sqrt{x^2+y^2}) - 0.5}{(1 + 0.001(x^2+y^2))^2}",
+                traits: ["Non-Separable", "Oscillating", "Concentric Ridges"]
+            },
+            {
+                id: "f9",
+                name: "F9: Happy Cat",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 5,
+                desc: "Combines a sphere function with a quartic term, creating a curved valley (canyon) that is hard to navigate because the valley floor is not flat.",
+                formula: "f(x) = | |x|^2 - D |^{1/4} + (0.5|x|^2 + \\sum x)/D + 0.5",
+                traits: ["Curved Valley", "Flat Canyon Floor", "Drift Test"]
+            },
+            {
+                id: "f10",
+                name: "F10: Ackley",
+                type: "Multimodal",
+                dim: 10,
+                visualizable: true,
+                range: 32,
+                desc: "A widely used benchmark. It features a nearly flat outer region (plateau) with a deep, narrow hole in the center containing the global optimum.",
+                formula: "-20\\exp\\left(-0.2\\sqrt{\\frac{1}{D}\\sum x_i^2}\\right) - \\exp\\left(\\frac{1}{D}\\sum \\cos(2\\pi x_i)\\right) + 20 + e",
+                traits: ["Flat Outer Region", "Narrow Global Basin", "Gradient vanishes far from opt"]
+            }
+        ];
+
+        // --- State ---
+        let currentFunc = null;
+        let highRes = false;
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderSidebar();
+            selectFunction(0); // Select F1 by default
+        });
+
+        function renderSidebar() {
+            const list = document.getElementById('functionList');
+            list.innerHTML = '';
+            cecFunctions.forEach((func, index) => {
+                const item = document.createElement('div');
+                item.className = `sidebar-item cursor-pointer p-3 rounded text-sm text-gray-300 hover:text-white mb-1 border-l-4 border-transparent`;
+                item.innerHTML = `
+                    <div class="font-medium">${func.name}</div>
+                    <div class="text-xs text-gray-500 flex justify-between mt-1">
+                        <span>${func.type}</span>
+                        <span>D=${func.dim}</span>
+                    </div>
+                `;
+                item.onclick = () => selectFunction(index);
+                item.id = `btn-${index}`;
+                list.appendChild(item);
+            });
+        }
+
+        function selectFunction(index) {
+            // Update Sidebar UI
+            document.querySelectorAll('.sidebar-item').forEach(el => {
+                el.classList.remove('active', 'bg-gray-700');
+                el.classList.add('border-transparent');
+            });
+            const activeBtn = document.getElementById(`btn-${index}`);
+            activeBtn.classList.add('active', 'bg-gray-700');
+            activeBtn.classList.remove('border-transparent');
+
+            // Load Data
+            currentFunc = cecFunctions[index];
+            updateHeader();
+            updateDetails();
+            renderPlot();
+        }
+
+        function updateHeader() {
+            document.getElementById('currentTitle').textContent = currentFunc.name;
+            const typeBadge = document.getElementById('currentType');
+            const dimBadge = document.getElementById('currentDim');
+
+            typeBadge.textContent = currentFunc.type;
+            typeBadge.classList.remove('hidden');
+            typeBadge.className = `px-2 py-0.5 rounded text-xs font-bold ${currentFunc.type === 'Unimodal' ? 'bg-green-900 text-green-300' : 'bg-purple-900 text-purple-300'}`;
+
+            dimBadge.textContent = `Dim: ${currentFunc.dim}`;
+            dimBadge.classList.remove('hidden');
+        }
+
+        function updateDetails() {
+            document.getElementById('descText').textContent = currentFunc.desc;
+
+            // Formula
+            const formulaContainer = document.getElementById('formulaContainer');
+            formulaContainer.innerHTML = `$$${currentFunc.formula}$$`;
+            MathJax.typesetPromise([formulaContainer]);
+
+            // Traits
+            const traitsList = document.getElementById('characteristicsList');
+            traitsList.innerHTML = currentFunc.traits.map(t => `<li class="text-gray-300"><span class="text-blue-400">●</span> ${t}</li>`).join('');
+        }
+
+        function toggleResolution() {
+            highRes = !highRes;
+            renderPlot();
+        }
+
+        // --- Math Logic & Plotting ---
+        function renderPlot() {
+            const plotDiv = document.getElementById('plot');
+            const overlay = document.getElementById('noVizOverlay');
+
+            if (!currentFunc.visualizable) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                Plotly.purge(plotDiv);
+                return;
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+
+            const range = currentFunc.range;
+            const step = highRes ? range / 50 : range / 25; // Resolution
+
+            let xValues = [];
+            let yValues = [];
+            let zValues = [];
+
+            // Generate Grid
+            for (let x = -range; x <= range; x += step) {
+                xValues.push(x);
+            }
+            for (let y = -range; y <= range; y += step) {
+                yValues.push(y);
+            }
+
+            // Calculate Z
+            for (let i = 0; i < yValues.length; i++) {
+                let row = [];
+                for (let j = 0; j < xValues.length; j++) {
+                    row.push(calculateZ(currentFunc.id, xValues[j], yValues[i]));
+                }
+                zValues.push(row);
+            }
+
+            const data = [{
+                z: zValues,
+                x: xValues,
+                y: yValues,
+                type: 'surface',
+                colorscale: 'Viridis',
+                contours: {
+                    z: { show: true, usecolormap: true, project: { z: true } }
+                }
+            }];
+
+            const layout = {
+                paper_bgcolor: '#111827', // Tailwind gray-900
+                plot_bgcolor: '#111827',
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                scene: {
+                    xaxis: { title: 'X1', color: '#9ca3af', gridcolor: '#374151' },
+                    yaxis: { title: 'X2', color: '#9ca3af', gridcolor: '#374151' },
+                    zaxis: { title: 'Fitness', color: '#9ca3af', gridcolor: '#374151' },
+                    camera: {
+                        eye: { x: 1.5, y: 1.5, z: 1.5 }
+                    }
+                },
+                font: { color: '#e5e7eb' }
+            };
+
+            const config = { responsive: true, displayModeBar: false };
+            Plotly.newPlot(plotDiv, data, layout, config);
+        }
+
+        function calculateZ(fid, x, y) {
+            // D = 2 for visualization slice
+            // Note: Standard formulas implemented here.
+            // Real CEC2019 uses shift/rotation matrices which are not included here for performance/simplicity.
+
+            const PI = Math.PI;
+
+            switch (fid) {
+                case 'f4': // Rastrigin
+                    return (10 * 2) + (x * x - 10 * Math.cos(2 * PI * x)) + (y * y - 10 * Math.cos(2 * PI * y));
+
+                case 'f5': // Griewank
+                    // Sum term - Product term
+                    const sum = (x * x) / 4000 + (y * y) / 4000;
+                    const prod = Math.cos(x / Math.sqrt(1)) * Math.cos(y / Math.sqrt(2));
+                    return 1 + sum - prod;
+
+                case 'f6': // Weierstrass (approx with kmax=5 for speed)
+                    // Simplified implementation for visual shape
+                    const a = 0.5, b = 3, kmax = 20;
+                    let sum1 = 0;
+                    let sum2 = 0; // Constant part
+                    for (let k = 0; k <= kmax; k++) {
+                        sum1 += Math.pow(a, k) * Math.cos(2 * PI * Math.pow(b, k) * (x + 0.5));
+                        sum1 += Math.pow(a, k) * Math.cos(2 * PI * Math.pow(b, k) * (y + 0.5));
+                        sum2 += Math.pow(a, k) * Math.cos(PI * Math.pow(b, k));
+                    }
+                    return sum1 - 2 * sum2;
+
+                case 'f7': // Modified Schwefel
+                    // Note: Schwefel is usually defined on [ -500, 500 ]
+                    // It returns large negative numbers, so we add 418.9829*D to make min 0
+                    const sch = (val) => val * Math.sin(Math.sqrt(Math.abs(val)));
+                    return 418.9829 * 2 - (sch(x) + sch(y));
+
+                case 'f8': // Expanded Schaffer F6
+                    const sq = x * x + y * y;
+                    const sinTerm = Math.sin(Math.sqrt(sq));
+                    return 0.5 + (sinTerm * sinTerm - 0.5) / Math.pow(1 + 0.001 * sq, 2);
+
+                case 'f9': // Happy Cat
+                    const x2 = x * x + y * y;
+                    const D = 2;
+                    return Math.pow(Math.abs(x2 - D), 0.25) + (0.5 * x2 + (x + y)) / D + 0.5;
+
+                case 'f10': // Ackley
+                    const sumSq = x * x + y * y;
+                    const sumCos = Math.cos(2 * PI * x) + Math.cos(2 * PI * y);
+                    return -20 * Math.exp(-0.2 * Math.sqrt(sumSq / 2)) - Math.exp(sumCos / 2) + 20 + Math.E;
+
+                default:
+                    return 0;
+            }
+        }
+
+        // Window Resize Handle
+        window.addEventListener('resize', () => {
+            if (currentFunc && currentFunc.visualizable) {
+                Plotly.Plots.resize(document.getElementById('plot'));
+            }
+        });
+
+    </script>
+</body>
+
+</html>
